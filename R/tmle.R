@@ -631,13 +631,18 @@ calcSigma <- function(hAV, gAVW, Y, Q, mAV, covar.MSM, covar.MSMA0, covar.MSMA1,
 
 tmleMSM <- function(Y,A,W,V,T=rep(1,length(Y)), Delta=rep(1, length(Y)), MSM, v=NULL, 
 				Q=NULL, Qform=NULL, 
-				Qbounds=c(-Inf, Inf), Q.SL.library=c("SL.glm", "tmle.SL.dbarts2", "SL.glmnet"), cvQinit = TRUE,
+				Qbounds=c(-Inf, Inf), Q.SL.library=c("SL.glm", "tmle.SL.dbarts2", "SL.glmnet"), 
+				Q.SL.stratifyCV=ifelse(family=="gaussian", FALSE, TRUE), cvQinit = TRUE,
 				hAV=NULL, hAVform=NULL,  
 				g1W = NULL, gform=NULL, 
 				pDelta1=NULL, g.Deltaform=NULL, 
-				g.SL.library=c("SL.glm", "tmle.SL.dbarts.k.5", "SL.gam"), ub = 1/0.025, 
+				g.SL.library=c("SL.glm", "tmle.SL.dbarts.k.5", "SL.gam"), 
+				g.SL.stratifyCV=TRUE, ub = 1/0.025, 
+				g.Delta.SL.library = c("SL.glm", "tmle.SL.dbarts.k.5", "SL.gam"),
+				g.Delta.SL.stratifyCV=TRUE,
 				family="gaussian", fluctuation="logistic", alpha  = 0.995,
-				id=1:length(Y), V_SL=5, inference=TRUE, verbose=FALSE, Q.discreteSL = FALSE, g.discreteSL = FALSE) {
+				id=1:length(Y), V_SL=5, inference=TRUE, verbose=FALSE, Q.discreteSL = FALSE, g.discreteSL = FALSE,
+				g.Delta.discreteSL=FALSE) {
 	Y[is.na(Y)] <- 0
 	n <- length(Y)
 	n.id <- length(unique(id))
@@ -672,11 +677,12 @@ tmleMSM <- function(Y,A,W,V,T=rep(1,length(Y)), Delta=rep(1, length(Y)), MSM, v=
 	Qinit <- suppressWarnings(estimateQ(Y=stage1$Ystar,Z=rep(1, length(Y)), A=A, 
 			W=cbind(W,V,T), Delta=(I.V==1 & Delta==1),
 			Q=stage1$Q, Qbounds=stage1$Qbounds, Qform=Qform, maptoYstar = maptoYstar,
-			SL.library=Q.SL.library, cvQinit=cvQinit, family=family, id=id, V = V_SL, verbose=verbose, discreteSL=Q.discreteSL))
+			SL.library=Q.SL.library, stratifyCV = Q.SL.stratifyCV, cvQinit=cvQinit, family=family, 
+			id=id, V = V_SL, verbose=verbose, discreteSL=Q.discreteSL))
 
 #---- Stage 2 -----
     if(is.null(hAV)){
-    	gAV <- suppressWarnings(estimateG(d=data.frame(A,V,T), hAV, hAVform,g.SL.library, id, V=V_SL, verbose, 
+    	gAV <- suppressWarnings(estimateG(d=data.frame(A,V,T), hAV, hAVform,g.SL.library, id, V=V_SL, stratifyCV = g.SL.stratifyCV, verbose, 
     			message="h(A,V)", outcome="A",  discreteSL= g.discreteSL))
 		hAV <- cbind((1-A)*(1-gAV$g1W) + A*gAV$g1W, 1-gAV$g1W, gAV$g1W)
 	} else {
@@ -688,10 +694,10 @@ tmleMSM <- function(Y,A,W,V,T=rep(1,length(Y)), Delta=rep(1, length(Y)), MSM, v=
 	}
 	colnames(hAV) <- c("hAV", "h0V", "h1V")
 	if (is.null(v)){
-		g <- suppressWarnings(estimateG(d=data.frame(A,V,W,T), g1W, gform,g.SL.library, id, V=V_SL, verbose, 
+		g <- suppressWarnings(estimateG(d=data.frame(A,V,W,T), g1W, gform,g.SL.library, id, V=V_SL, stratifyCV = g.SL.stratifyCV, verbose, 
     			message="treatment mechanism", outcome="A",  discreteSL=g.discreteSL))
 	} else {	
-		g <- suppressWarnings(estimateG(d=data.frame(A,V,W,T), g1W, gform,g.SL.library, id, V=V_SL, verbose, 
+		g <- suppressWarnings(estimateG(d=data.frame(A,V,W,T), g1W, gform,g.SL.library, id, V=V_SL, stratifyCV = g.SL.stratifyCV, verbose, 
     			message="treatment mechanism", outcome="A", newdata=data.frame(A,V=v, W,T),  discreteSL=g.discreteSL))
    }
    g$bound <- c(0,ub)
@@ -699,7 +705,7 @@ tmleMSM <- function(Y,A,W,V,T=rep(1,length(Y)), Delta=rep(1, length(Y)), MSM, v=
  		stop("Error estimating treatment mechanism (hint: only numeric variables are allowed)") 
  	}
  	g.Delta <- estimateG(d=data.frame(Delta, Z=1, A, W,V,T), pDelta1, g.Deltaform, 
- 		g.SL.library,id=id, V = V_SL, verbose, "missingness mechanism", outcome="D",  discreteSL=g.discreteSL) 
+ 		g.Delta.SL.library,id=id, V = V_SL, stratifyCV = g.Delta.SL.stratifyCV, verbose, "missingness mechanism", outcome="D",  discreteSL=g.Delta.discreteSL) 
 	g1VW <- g$g1W * g.Delta$g1W[,"Z0A1"]
 	g0VW <- (1-g$g1W) * g.Delta$g1W[,"Z0A0"]
 	gAVW <- A*g1VW + (1-A)*g0VW
@@ -944,6 +950,7 @@ tmleMSM <- function(Y,A,W,V,T=rep(1,length(Y)), Delta=rep(1, length(Y)), MSM, v=
 # 	family - regression family
 #	id - subject identifier
 # V - number of cross-validation folds
+# stratifyCV - logical, should the V data splits be stratified by a binary response? 
 # returns matrix of linear predictors for Q(A,W), Q(0,W), Q(1,W),
 #   (for controlled direct effect, 2 additional columns: Q(Z=1,A=0,W), Q(Z=1,A=1,W)) 
 #		family for stage 2 targeting
@@ -951,7 +958,7 @@ tmleMSM <- function(Y,A,W,V,T=rep(1,length(Y)), Delta=rep(1, length(Y)), MSM, v=
 # 		type, estimation method for Q
 #----------------------------------------
 estimateQ <- function (Y,Z,A,W, Delta, Q, Qbounds, Qform, maptoYstar, 
-		SL.library, cvQinit,  family, id, V, verbose, discreteSL) {
+		SL.library, cvQinit,  family, id, V, stratifyCV, verbose, discreteSL) {
 	.expandLib <- function(SL.lib){
 		if (is.list(SL.lib)){
 			counts <- sapply(SL.lib, length)
@@ -1045,7 +1052,8 @@ estimateQ <- function (Y,Z,A,W, Delta, Q, Qbounds, Qform, maptoYstar,
   							V=V, family=family, save.fit.library=FALSE, id=id[Delta==1])
   				} else {
     				arglist <- list(Y=Y[Delta==1],X=X[Delta==1,], newX=newX, SL.library=SL.library,
-    			 		cvControl=list(V=V), family=family, control = list(saveFitLibrary=FALSE), id=id[Delta==1])
+    			 		cvControl=list(V=V, stratifyCV=stratifyCV), family=family, 
+    			 		control = list(saveFitLibrary=FALSE), id=id[Delta==1])
     			}
     			suppressWarnings(m<- try(do.call(SuperLearner, arglist)))	
   				if(identical(class(m),"SuperLearner")){  
@@ -1074,8 +1082,8 @@ estimateQ <- function (Y,Z,A,W, Delta, Q, Qbounds, Qform, maptoYstar,
     								SL.library=SL.library.keep,V=V, family=family, save.fit.library=FALSE, id=id[TRAIN & Delta==1])
   							} else {
     								arglist <- list(Y=Y[TRAIN & Delta==1],X=X[TRAIN & Delta==1,], newX=newX[!TRAIN,], 
-    								SL.library=SL.library.keep, cvControl=list(V=V), family=family, control = list(saveFitLibrary=FALSE),
-    								 id=id[TRAIN & Delta==1])
+    								SL.library=SL.library.keep, cvControl=list(V=V,stratifyCV=stratifyCV), family=family, 
+    								control = list(saveFitLibrary=FALSE), id=id[TRAIN & Delta==1])
     						}
     						suppressWarnings(m<- try(do.call(SuperLearner, arglist)))
     						if(discreteSL){
@@ -1170,8 +1178,9 @@ estimateQ <- function (Y,Z,A,W, Delta, Q, Qbounds, Qform, maptoYstar,
 # g1W - optional vector/matrix  of externally estimated values
 # gform - optionalformula to use for glm
 # SL.library - algorithms to use for super learner estimation
-#   id - subject identifier
-#  V - number of cross-validation folds
+# id - subject identifier
+# V - number of cross-validation folds
+# stratifyCV - logical, should the V data splits be stratified by a binary response? 
 # verbose - flag, whether or not to print messages
 # message - printed when verbose=TRUE 
 # outcome - "A" for treatment, "Z" for intermediate variable,
@@ -1181,7 +1190,7 @@ estimateQ <- function (Y,Z,A,W, Delta, Q, Qbounds, Qform, maptoYstar,
 # d = [Z,A,W] for intermediate
 # d = [Delta, Z,A,W for missingness]
 #----------------------------------------
-estimateG <- function (d,g1W, gform,SL.library, id, V, verbose, message, outcome="A", newdata=d, discreteSL)  {
+estimateG <- function (d,g1W, gform,SL.library, id, V, stratifyCV, verbose, message, outcome="A", newdata=d, discreteSL)  {
   SL.version <- 2
   SL.ok <- FALSE
   m <- NULL
@@ -1204,7 +1213,7 @@ estimateG <- function (d,g1W, gform,SL.library, id, V, verbose, message, outcome
   		if(old.SL){
   			arglist <- list(Y=d[,1], X=d[,-1, drop=FALSE], newX=newdata[,-1, drop=FALSE], family="binomial", SL.library=SL.library, V=V, id=id)
   		} else {
-  		 	arglist <- list(Y=d[,1], X=d[,-1, drop=FALSE], newX=newdata[,-1, drop=FALSE], family="binomial", SL.library=SL.library, cvControl=list(V=V), id=id)
+  		 	arglist <- list(Y=d[,1], X=d[,-1, drop=FALSE], newX=newdata[,-1, drop=FALSE], family="binomial", SL.library=SL.library, cvControl=list(V=V, stratifyCV=stratifyCV), id=id)
   		}
   		suppressWarnings(
   			m <- try(do.call(SuperLearner,arglist))
@@ -1412,9 +1421,12 @@ calcParameters <- function(Y,A, I.Z, Delta, g1W, g0W, Q, mu1, mu0, id, family){
 # pDelta1 - optional values for P(Delta=1|Z,A,W)
 # g.Deltaform - optional glm regression formula  
 # Q.SL.library- optional Super Learner library for estimation of Q, 
+# Q.SL.stratifyCV - optional, if TRUE data splits will stratified by binary Y
 # cvQinit - if TRUE obtain cross-validated initial Q
 # g.SL.library - optional library for estimation of g1W
+# g.SL.stratifyCV - optional, if TRUE data splits will stratified by binary A
 # g.Delta.SL.library - optional library for estimation of p(Delta = 1 | A, L, W)
+# g.Delta.SL.stratifyCV - optional, if TRUE data splits will stratified by binary Delta
 # family - family specification for regression models, defaults to gaussian
 # fluctuation - "logistic" (default) or "linear" (for targeting step)
 # alpha - bound on predicted probabilities for Q (0.005, 0.995 default)
@@ -1428,12 +1440,15 @@ calcParameters <- function(Y,A, I.Z, Delta, g1W, g0W, Q, mu1, mu0, id, family){
 #-------------------------------------------------------------------------------
 tmle <- function(Y,A,W, Z=NULL, Delta=rep(1,length(Y)),  
 				Q=NULL, Q.Z1=NULL, Qform=NULL, Qbounds=NULL, 
-				Q.SL.library=c("SL.glm", "tmle.SL.dbarts2", "SL.glmnet"), cvQinit= TRUE,
+				Q.SL.library=c("SL.glm", "tmle.SL.dbarts2", "SL.glmnet"), 
+				Q.SL.stratifyCV=ifelse(family=="gaussian", FALSE, TRUE), cvQinit= TRUE,
 				g1W=NULL, gform=NULL, gbound= 5/sqrt(length(Y))/log(length(Y)), 
 				pZ1=NULL, g.Zform=NULL,
 				pDelta1=NULL, g.Deltaform=NULL, 
 				g.SL.library=c("SL.glm", "tmle.SL.dbarts.k.5", "SL.gam"),
+				g.SL.stratifyCV=TRUE,
 				g.Delta.SL.library = c("SL.glm", "tmle.SL.dbarts.k.5", "SL.gam"),
+				g.Delta.SL.stratifyCV=TRUE,
 				family="gaussian", fluctuation="logistic", 
 				alpha  = 0.9995, id=1:length(Y), V = 5, verbose=FALSE, Q.discreteSL=FALSE, 
 				g.discreteSL = FALSE, g.Delta.discreteSL=FALSE, prescreenW.g = TRUE, min.retain = 2, RESID=FALSE, target.gwt =TRUE,
@@ -1527,7 +1542,7 @@ tmle <- function(Y,A,W, Z=NULL, Delta=rep(1,length(Y)),
 	# Stage 1	
  	stage1 <- .initStage1(Y, A, Q, Q.Z1, Delta, Qbounds, alpha, maptoYstar, family)		
 	Q <- suppressWarnings(estimateQ(Y=stage1$Ystar,Z,A,W, Delta, Q=stage1$Q, Qbounds=stage1$Qbounds, Qform, 
-					maptoYstar=maptoYstar, SL.library=Q.SL.library, 
+					maptoYstar=maptoYstar, SL.library=Q.SL.library, stratifyCV = Q.SL.stratifyCV,
 					cvQinit=cvQinit, family=family, id=id, V = V, verbose=verbose, discreteSL=Q.discreteSL))
 					
 	# Stage 2
@@ -1555,7 +1570,7 @@ tmle <- function(Y,A,W, Z=NULL, Delta=rep(1,length(Y)),
 		}	
 		retain.W <- .prescreenW.g(stage1$Ystar, A, as.matrix(W), Delta , QAW = Q.offset,  family = family, min.retain, RESID=RESID)
 	}	
- 	g <- suppressWarnings(estimateG(d=data.frame(A,W[,retain.W]), g1W, gform, g.SL.library, id=id, V = V, verbose, "treatment mechanism", outcome="A",  discreteSL = g.discreteSL)) 
+ 	g <- suppressWarnings(estimateG(d=data.frame(A,W[,retain.W]), g1W, gform, g.SL.library, id=id, V = V, stratifyCV = g.SL.stratifyCV, verbose, "treatment mechanism", outcome="A",  discreteSL = g.discreteSL)) 
  	g$bound.ATT <- gbound.ATT
  	g$bound <- gbound
  	if(g$type=="try-error"){
@@ -1574,7 +1589,7 @@ tmle <- function(Y,A,W, Z=NULL, Delta=rep(1,length(Y)),
   			retain.W.Delta <- 1:NCOL(W)
   		}		
   		g.Delta <- suppressWarnings(estimateG(d=data.frame(Delta, Z=1, A, W[,retain.W]), pDelta1, g.Deltaform, 
- 	 		SL.library = g.Delta.SL.library, id=id, V = V, verbose = verbose, "missingness mechanism", outcome="D",  discreteSL= g.Delta.discreteSL)) 
+ 	 		SL.library = g.Delta.SL.library, id=id, V = V, stratifyCV = g.Delta.SL.stratifyCV, verbose = verbose, "missingness mechanism", outcome="D",  discreteSL= g.Delta.discreteSL)) 
  		g1W.total <- .bound(g$g1W*g.Delta$g1W[,"Z0A1"], g$bound)
   		g0W.total <- .bound((1-g$g1W)*g.Delta$g1W[,"Z0A0"], g$bound) 
   		if(all(g1W.total==0)){g1W.total <- rep(10^-9, length(g1W.total))}
@@ -1681,10 +1696,10 @@ tmle <- function(Y,A,W, Z=NULL, Delta=rep(1,length(Y)),
   		class(returnVal) <- "tmle"
   	} else {
   		returnVal <- vector(mode="list", length=2)
-  		g.z <- suppressWarnings(estimateG(d=data.frame(Z,A,W[,retain.W]), pZ1, g.Zform, g.SL.library, id=id, V = V, 
+  		g.z <- suppressWarnings(estimateG(d=data.frame(Z,A,W[,retain.W]), pZ1, g.Zform, g.SL.library, id=id, V = V, stratifyCV = g.SL.stratifyCV,
   					  verbose, "intermediate variable", outcome="Z",  discreteSL= g.discreteSL))
   		g.Delta <- suppressWarnings(estimateG(d=data.frame(Delta,Z, A, W[,retain.W]), pDelta1, g.Deltaform, 
-  								 g.Delta.SL.library,id=id, V=V, verbose, "missingness mechanism", outcome="D",  discreteSL= g.Delta.discreteSL)) 
+  								 g.Delta.SL.library,id=id, V=V, stratifyCV = g.Delta.SL.stratifyCV, verbose, "missingness mechanism", outcome="D",  discreteSL= g.Delta.discreteSL)) 
     	ZAD <- cbind(D1Z0A0 = .bound((1-g$g1W)*(1-g.z$g1W[,"A0"])*g.Delta$g1W[,"Z0A0"], gbound),
   					  D1Z0A1 = .bound(g$g1W*(1-g.z$g1W[,"A1"])*g.Delta$g1W[,"Z0A1"], gbound),
   					  D1Z1A0 = .bound((1-g$g1W)*g.z$g1W[,"A0"]*g.Delta$g1W[,"Z1A0"], gbound),
