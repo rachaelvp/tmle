@@ -8,11 +8,14 @@ Targeted maximum likelihood estimation of parameters of a marginal structural mo
 \usage{
 tmle(Y, A, W, Z=NULL, Delta = rep(1,length(Y)), Q = NULL, Q.Z1 = NULL, Qform = NULL, 
      Qbounds = NULL, Q.SL.library = c("SL.glm", "tmle.SL.dbarts2", "SL.glmnet"), 
+     Q.SL.stratifyCV = ifelse(family == "gaussian", FALSE, TRUE),
      cvQinit = TRUE, g1W = NULL, gform = NULL, 
      gbound = 5/sqrt(length(Y))/log(length(Y)),  pZ1=NULL,
      g.Zform = NULL, pDelta1 = NULL, g.Deltaform = NULL, 
      g.SL.library = c("SL.glm", "tmle.SL.dbarts.k.5", "SL.gam"),
+     g.SL.stratifyCV = TRUE,
      g.Delta.SL.library =  c("SL.glm", "tmle.SL.dbarts.k.5", "SL.gam"),
+     g.Delta.SL.stratifyCV = TRUE,
      family = "gaussian", fluctuation = "logistic", alpha = 0.9995, id=1:length(Y), V = 5,
      verbose = FALSE, Q.discreteSL=FALSE, g.discreteSL=FALSE, g.Delta.discreteSL=FALSE,
      prescreenW.g=TRUE, min.retain = 2, RESID=FALSE, target.gwt = TRUE, automate=FALSE)
@@ -28,6 +31,7 @@ tmle(Y, A, W, Z=NULL, Delta = rep(1,length(Y)), Q = NULL, Q.Z1 = NULL, Qform = N
  \item{Qform}{optional regression formula for estimation of \eqn{E(Y|A,W)}, suitable for call to \code{glm}}
   \item{Qbounds}{vector of upper and lower bounds on \code{Y} and predicted values for initial \code{Q}. Defaults to the range of \code{Y}, widened by 1\% of the min and max values.}
   \item{Q.SL.library}{optional vector of prediction algorithms to use for \code{SuperLearner} estimation of initial \code{Q}}
+    \item{Q.SL.stratifyCV}{optional logical, if \code{TRUE}, then for \code{SuperLearner} estimation of initial \code{Q}, a stratified cross-validation scheme will attempt to maintain the same prevalence of \code{Y} in each training and validation sample}
   \item{cvQinit}{logical, if \code{TRUE}, estimates cross-validated predicted values, default=\code{TRUE}}
   \item{g1W}{optional vector of conditional treatment assingment probabilities, \eqn{P(A=1|W)}}
   \item{gform}{optional regression formula of the form \code{A~W}, if specified this overrides the call to \code{SuperLearner}}
@@ -37,21 +41,23 @@ tmle(Y, A, W, Z=NULL, Delta = rep(1,length(Y)), Q = NULL, Q.Z1 = NULL, Qform = N
   \item{pDelta1}{optional matrix of conditional probabilities for missingness mechanism, \eqn{nx2} when \code{Z} is \code{NULL} \eqn{P(Delta=1|A=0,W), P(Delta=1|A=1,W)}. \eqn{nx4} otherwise, \eqn{P(Delta=1|Z=0,A=0,W), P(Delta=1|Z=0,A=1,W), P(Delta=1|Z=1,A=0,W), P(Delta=1|Z=1,A=1,W)}}
   \item{g.Deltaform}{optional regression formula of the form \code{Delta~A+W}, if specified this overrides the call to \code{SuperLearner}}
   \item{g.SL.library}{optional vector of prediction algorithms to use for \code{SuperLearner} estimation of \code{g1W}}
+    \item{g.SL.stratifyCV}{optional logical, if \code{TRUE}, then for \code{SuperLearner} estimation of initial \code{g1W}, a stratified cross-validation scheme will attempt to maintain the same prevalence of \code{A} in each training and validation sample}
 \item{g.Delta.SL.library}{optional vector of prediction algorithms to use for \code{SuperLearner} estimation of \code{pDelta1} }
+  \item{g.Delta.SL.stratifyCV}{optional logical, if \code{TRUE}, then for \code{SuperLearner} estimation of initial \code{pDelta1}, a stratified cross-validation scheme will attempt to maintain the same prevalence of \code{Delta} in each training and validation sample}
   \item{family}{family specification for working regression models, generally \sQuote{gaussian} for continuous outcomes (default), \sQuote{binomial} for binary outcomes}
   \item{fluctuation}{\sQuote{logistic} (default), or \sQuote{linear}}
   \item{alpha}{used to keep predicted initial values bounded away from (0,1) for logistic fluctuation}
   \item{id}{optional subject identifier}
   \item{V}{Number of cross-validation folds for estimating Q, and for super learner estimation of g}
   \item{verbose}{status messages printed if set to \code{TRUE} (default=\code{FALSE})}
-  \item{Q.discreteSL}{if TRUE, discreteSL is used instead of ensemble SL. Ignored when SL not used to estimate Q} 
-  \item{g.discreteSL}{if TRUE, discreteSL is used instead of ensemble SL. Ignored when SL not used to estimate g1W} 
-  \item{g.Delta.discreteSL}{if TRUE, discreteSL is used instead of ensemble SL. Ignored when SL not used to estimate P(Delta = 1 | A,W)} 
+  \item{Q.discreteSL}{if \code{TRUE}, discreteSL is used instead of ensemble SL. Ignored when SL not used to estimate \code{Q}}
+  \item{g.discreteSL}{if \code{TRUE}, discreteSL is used instead of ensemble SL. Ignored when SL not used to estimate \code{g1W}} 
+  \item{g.Delta.discreteSL}{if \code{TRUE}, discreteSL is used instead of ensemble SL. Ignored when SL not used to estimate \code{pDelta1}} 
   \item{prescreenW.g}{Screen covariates before estimating g in order to retain only those associated with Stage 1 residuals}
   \item{min.retain}{Minimum number of covariates to retain when prescreening covariates for g. Ignored when prescreenW.g=FALSE} 
   \item{RESID}{Flag indicating whether to retain covariates associated with the outcome \eqn{RESID=FALSE}, or associated only with the residuals from the outcome regression. Ignored when prescreenW.g=FALSE} 
-  \item{target.gwt}{When TRUE, move g from denominator of clever covariate to the weight when fitting epsilon}
-  \item{automate}{When TRUE, all tuning parameters are set to their default values. Number of cross validation folds and truncation level for g are set data-adaptively based on sample size (see details).}
+  \item{target.gwt}{When \code{TRUE}, move g from denominator of clever covariate to the weight when fitting epsilon}
+  \item{automate}{When \code{TRUE}, all tuning parameters are set to their default values. Number of cross validation folds and truncation level for g are set data-adaptively based on sample size (see details).}
 }
 \details{
  \code{gbounds} Lower bound defaults to lb = \eqn{5/sqrt(n)/log(n)}. For treatment effect estimates and population mean outcome the upper bound defaults to 1. For ATT and ATC, the upper bound defaults to 1- lb.
@@ -60,7 +66,7 @@ tmle(Y, A, W, Z=NULL, Delta = rep(1,length(Y)), Q = NULL, Q.Z1 = NULL, Qform = N
 
  Controlled direct effects are estimated when binary covariate \code{Z} is non-null. The tmle function returns an object of class \code{tmle.list}, a list of two items of class \code{tmle}.  The first corresponds to estimates obtained when \code{Z} is fixed at \eqn{0}, the second corresponds to estimates obtained when \code{Z} is fixed at \eqn{1}.
 
-When automate = TRUE the sample size determines the number of cross validation folds, V: \eqn{n.effective = n} for continuous \code{Y}, and 5 * size of minority class for binary \code{Y}. When \eqn{n.effective <= 30}, V= \eqn{n.effective}; When \eqn{n.effective <= 500}, V= 20; When \eqn{500 < n <=1000} V=10; When \eqn{1000 < n <= 10000} V=5; Otherwise V=2. Bounds on \code{g} set to \eqn{(5/sqrt(n)/log(n), 1)}, except for ATT and ATE, where upper bound is 1-lower bound.
+When \code{automate = TRUE} the sample size determines the number of cross validation folds, V: \eqn{n.effective = n} for continuous \code{Y}, and 5 * size of minority class for binary \code{Y}. When \eqn{n.effective <= 30}, V= \eqn{n.effective}; When \eqn{n.effective <= 500}, V= 20; When \eqn{500 < n <=1000} V=10; When \eqn{1000 < n <= 10000} V=5; Otherwise V=2. Bounds on \code{g} set to \eqn{(5/sqrt(n)/log(n), 1)}, except for ATT and ATE, where upper bound is 1-lower bound.
 }
 \value{
   \item{estimates}{list with elements EY1 (population mean), ATE (additive treatment effect), ATT (additive treatment effect among the treated), ATC (additive treatment effect among the controls), RR (relative risk), OR (odds ratio). Each element in the estimates of these is itself a list containing 

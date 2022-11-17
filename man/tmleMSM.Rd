@@ -10,12 +10,17 @@ Targeted maximum likelihood estimation of the parameter of a marginal structural
 tmleMSM(Y, A, W, V, T = rep(1,length(Y)), Delta = rep(1, length(Y)), MSM, 
         v = NULL, Q = NULL, Qform = NULL, Qbounds = c(-Inf, Inf), 
         Q.SL.library = c("SL.glm", "tmle.SL.dbarts2", "SL.glmnet"), 
+        Q.SL.stratifyCV = ifelse(family == "gaussian", FALSE, TRUE),
         cvQinit = TRUE, hAV = NULL, hAVform = NULL, g1W = NULL, 
         gform = NULL, pDelta1 = NULL, g.Deltaform = NULL, 
-	g.SL.library = c("SL.glm", "tmle.SL.dbarts.k.5", "SL.gam"),
-	ub = 1/0.025, family = "gaussian", fluctuation = "logistic", 
+        g.SL.library = c("SL.glm", "tmle.SL.dbarts.k.5", "SL.gam"),
+        g.SL.stratifyCV = TRUE,
+        g.Delta.SL.library =  c("SL.glm", "tmle.SL.dbarts.k.5", "SL.gam"),
+        g.Delta.SL.stratifyCV = TRUE,
+        ub = 1/0.025, family = "gaussian", fluctuation = "logistic", 
         alpha  = 0.995, id = 1:length(Y), V_SL = 5, inference = TRUE, 
-        verbose = FALSE, Q.discreteSL = FALSE, g.discreteSL = FALSE) 
+        verbose = FALSE, Q.discreteSL = FALSE, g.discreteSL = FALSE,
+        g.Delta.discreteSL = FALSE) 
 }
 \arguments{
   \item{Y}{continuous or binary outcome variable}
@@ -30,6 +35,7 @@ tmleMSM(Y, A, W, V, T = rep(1,length(Y)), Delta = rep(1, length(Y)), MSM,
   \item{Qform}{optional regression formula for estimation of \eqn{E(Y|A, W)}, suitable for call to \code{glm}}
   \item{Qbounds}{vector of upper and lower bounds on \code{Y} and predicted values for initial \code{Q}}
   \item{Q.SL.library}{optional vector of prediction algorithms to use for \code{SuperLearner} estimation of initial \code{Q} }
+  \item{Q.SL.stratifyCV}{optional logical, if \code{TRUE}, then for \code{SuperLearner} estimation of initial \code{Q}, a stratified cross-validation scheme will attempt to maintain the same prevalence of \code{Y} in each training and validation sample}
   \item{cvQinit}{logical, if \code{TRUE}, estimates cross-validated predicted values using discrete super learning, default=\code{TRUE}}
   \item{hAV}{optional \eqn{nx2} matrix used in numerator of weights for updating covariate and the influence curve. If unspecified, defaults to conditional probabilities \eqn{P(A=1|V)} or \eqn{P(A=1|T)}, for repeated measures data. For unstabilized weights, pass in an \eqn{nx2} matrix of all 1s}
   \item{hAVform}{optionalregression formula of the form \code{A~V+T}, if specified this overrides the call to \code{SuperLearner}} 
@@ -37,7 +43,10 @@ tmleMSM(Y, A, W, V, T = rep(1,length(Y)), Delta = rep(1, length(Y)), MSM,
   \item{gform}{optional regression formula of the form \code{A~W}, if specified this overrides the call to \code{SuperLearner}}
   \item{pDelta1}{optional \eqn{nx2} matrix of conditional probabilities for missingness mechanism,\eqn{P(Delta=1|A=0,V,W,T), P(Delta=1|A=1,V,W,T)}.} 
   \item{g.Deltaform}{optional regression formula of the form \code{Delta~A+W}, if specified this overrides the call to \code{SuperLearner}}
-  \item{g.SL.library}{optional vector of prediction algorithms to use for \code{SuperLearner} estimation of \code{g1W} or \code{pDelta1} }
+  \item{g.SL.library}{optional vector of prediction algorithms to use for \code{SuperLearner} estimation of \code{g1W}}
+  \item{g.SL.stratifyCV}{optional logical, if \code{TRUE}, then for \code{SuperLearner} estimation of initial \code{g1W}, a stratified cross-validation scheme will attempt to maintain the same prevalence of \code{A} in each training and validation sample}
+  \item{g.Delta.SL.library}{optional vector of prediction algorithms to use for \code{SuperLearner} estimation of \code{pDelta1}}
+  \item{g.Delta.SL.stratifyCV}{optional logical, if \code{TRUE}, then for \code{SuperLearner} estimation of initial \code{pDelta1}, a stratified cross-validation scheme will attempt to maintain the same prevalence of \code{Delta} in each training and validation sample}
   \item{ub}{upper bound on observation weights. See \code{Details} section for more information}
   \item{family}{family specification for working regression models, generally \sQuote{gaussian} for continuous outcomes (default), \sQuote{binomial} for binary outcomes}
   \item{fluctuation}{\sQuote{logistic} (default), or \sQuote{linear}}
@@ -46,8 +55,9 @@ tmleMSM(Y, A, W, V, T = rep(1,length(Y)), Delta = rep(1, length(Y)), MSM,
   \item{V_SL}{number of cross-validation folds for Super Learner estimation of Q and g}
   \item{inference}{if \code{TRUE}, variance-covariance matrix, standard errors, pvalues, and 95\% confidence intervals are calculated. Setting to FALSE saves a little time when bootstrapping.}
   \item{verbose}{status messages printed if set to \code{TRUE} (default=\code{FALSE})}
-  \item{Q.discreteSL}{If true, use discrete SL to estimate Q, otherwise ensembleSL by default. Ignored when SL is not used.}
-  \item{g.discreteSL}{If true, use discrete SL to estimate components of g, otherwise ensembleSL by default. Ignored when SL is not used.}
+  \item{Q.discreteSL}{If \code{TRUE}, use discrete SL to estimate \code{Q}, otherwise ensembleSL by default. Ignored when SL is not used.}
+  \item{g.discreteSL}{If \code{TRUE}, use discrete SL to estimate \code{g1W}, otherwise ensembleSL by default. Ignored when SL is not used.}
+  \item{g.Delta.discreteSL}{If \code{TRUE}, use discrete SL to estimate \code{pDelta1}, otherwise ensembleSL by default. Ignored when SL is not used.}
 }
 \details{
  \code{ub} bounds the IC by bounding the factor \eqn{h(A,V)/[g(A,V,W)P(Delta=1|A,V,W)]} between 0 and \code{ub}, default value = 1/0.025.
