@@ -1051,9 +1051,16 @@ estimateQ <- function (Y,Z,A,W, Delta, Q, Qbounds, Qform, maptoYstar,
     				arglist <- list(Y=Y[Delta==1],X=X[Delta==1,], newX=newX, SL.library=SL.library,
   							V=V, family=family, save.fit.library=FALSE, id=id[Delta==1])
   				} else {
-    				arglist <- list(Y=Y[Delta==1],X=X[Delta==1,], newX=newX, SL.library=SL.library,
-    			 		cvControl=list(V=V, stratifyCV=stratifyCV), family=family, 
-    			 		control = list(saveFitLibrary=FALSE), id=id[Delta==1])
+  				  if(length(unique(id[Delta==1])) == length(Y[Delta==1])){
+  				    arglist <- list(Y=Y[Delta==1],X=X[Delta==1,], newX=newX, SL.library=SL.library,
+  				                    cvControl=list(V=V, stratifyCV=stratifyCV), family=family, 
+  				                    control = list(saveFitLibrary=FALSE))
+  				  } else {
+  				    arglist <- list(Y=Y[Delta==1],X=X[Delta==1,], newX=newX, SL.library=SL.library,
+  				                    cvControl=list(V=V), family=family, 
+  				                    control = list(saveFitLibrary=FALSE), id=id[Delta==1])
+  				  }
+    				
     			}
     			suppressWarnings(m<- try(do.call(SuperLearner, arglist)))	
   				if(identical(class(m),"SuperLearner")){  
@@ -1081,9 +1088,15 @@ estimateQ <- function (Y,Z,A,W, Delta, Q, Qbounds, Qform, maptoYstar,
     								arglist <- list(Y=Y[TRAIN & Delta==1],X=X[TRAIN & Delta==1,], newX=newX[!TRAIN,], 
     								SL.library=SL.library.keep,V=V, family=family, save.fit.library=FALSE, id=id[TRAIN & Delta==1])
   							} else {
-    								arglist <- list(Y=Y[TRAIN & Delta==1],X=X[TRAIN & Delta==1,], newX=newX[!TRAIN,], 
-    								SL.library=SL.library.keep, cvControl=list(V=V,stratifyCV=stratifyCV), family=family, 
-    								control = list(saveFitLibrary=FALSE), id=id[TRAIN & Delta==1])
+  							  if(length(unique(id[Delta==1])) == length(Y[Delta==1])){
+  							    arglist <- list(Y=Y[TRAIN & Delta==1],X=X[TRAIN & Delta==1,], newX=newX[!TRAIN,], 
+  							                    SL.library=SL.library.keep, cvControl=list(V=V,stratifyCV=stratifyCV), family=family, 
+  							                    control = list(saveFitLibrary=FALSE))
+  							  } else {
+  							    arglist <- list(Y=Y[TRAIN & Delta==1],X=X[TRAIN & Delta==1,], newX=newX[!TRAIN,], 
+  							                    SL.library=SL.library.keep, cvControl=list(V=V), family=family, 
+  							                    control = list(saveFitLibrary=FALSE), id=id[TRAIN & Delta==1])
+  							  }
     						}
     						suppressWarnings(m<- try(do.call(SuperLearner, arglist)))
     						if(discreteSL){
@@ -1213,7 +1226,12 @@ estimateG <- function (d,g1W, gform,SL.library, id, V, stratifyCV, verbose, mess
   		if(old.SL){
   			arglist <- list(Y=d[,1], X=d[,-1, drop=FALSE], newX=newdata[,-1, drop=FALSE], family="binomial", SL.library=SL.library, V=V, id=id)
   		} else {
-  		 	arglist <- list(Y=d[,1], X=d[,-1, drop=FALSE], newX=newdata[,-1, drop=FALSE], family="binomial", SL.library=SL.library, cvControl=list(V=V, stratifyCV=stratifyCV), id=id)
+  		  if(length(unique(id)) == length(d[,1])){
+  		    arglist <- list(Y=d[,1], X=d[,-1, drop=FALSE], newX=newdata[,-1, drop=FALSE], family="binomial", SL.library=SL.library, cvControl=list(V=V, stratifyCV=stratifyCV))
+  		  } else {
+  		    arglist <- list(Y=d[,1], X=d[,-1, drop=FALSE], newX=newdata[,-1, drop=FALSE], family="binomial", SL.library=SL.library, cvControl=list(V=V), id=id)
+  		  }
+  		 	
   		}
   		suppressWarnings(
   			m <- try(do.call(SuperLearner,arglist))

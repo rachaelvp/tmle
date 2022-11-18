@@ -31,7 +31,7 @@ tmle(Y, A, W, Z=NULL, Delta = rep(1,length(Y)), Q = NULL, Q.Z1 = NULL, Qform = N
  \item{Qform}{optional regression formula for estimation of \eqn{E(Y|A,W)}, suitable for call to \code{glm}}
   \item{Qbounds}{vector of upper and lower bounds on \code{Y} and predicted values for initial \code{Q}. Defaults to the range of \code{Y}, widened by 1\% of the min and max values.}
   \item{Q.SL.library}{optional vector of prediction algorithms to use for \code{SuperLearner} estimation of initial \code{Q}}
-    \item{Q.SL.stratifyCV}{optional logical, if \code{TRUE}, then for \code{SuperLearner} estimation of initial \code{Q}, a stratified cross-validation scheme will attempt to maintain the same prevalence of \code{Y} in each training and validation sample}
+    \item{Q.SL.stratifyCV}{optional logical, if \code{TRUE}, then for \code{SuperLearner} estimation of initial \code{Q}, a stratified cross-validation scheme will attempt to maintain the same prevalence of \code{Y} in each training and validation sample. Ignored when \code{id} is specified and contains fewer unique values than the length of \code{Y}.}
   \item{cvQinit}{logical, if \code{TRUE}, estimates cross-validated predicted values, default=\code{TRUE}}
   \item{g1W}{optional vector of conditional treatment assingment probabilities, \eqn{P(A=1|W)}}
   \item{gform}{optional regression formula of the form \code{A~W}, if specified this overrides the call to \code{SuperLearner}}
@@ -41,9 +41,9 @@ tmle(Y, A, W, Z=NULL, Delta = rep(1,length(Y)), Q = NULL, Q.Z1 = NULL, Qform = N
   \item{pDelta1}{optional matrix of conditional probabilities for missingness mechanism, \eqn{nx2} when \code{Z} is \code{NULL} \eqn{P(Delta=1|A=0,W), P(Delta=1|A=1,W)}. \eqn{nx4} otherwise, \eqn{P(Delta=1|Z=0,A=0,W), P(Delta=1|Z=0,A=1,W), P(Delta=1|Z=1,A=0,W), P(Delta=1|Z=1,A=1,W)}}
   \item{g.Deltaform}{optional regression formula of the form \code{Delta~A+W}, if specified this overrides the call to \code{SuperLearner}}
   \item{g.SL.library}{optional vector of prediction algorithms to use for \code{SuperLearner} estimation of \code{g1W}}
-    \item{g.SL.stratifyCV}{optional logical, if \code{TRUE}, then for \code{SuperLearner} estimation of initial \code{g1W}, a stratified cross-validation scheme will attempt to maintain the same prevalence of \code{A} in each training and validation sample}
+    \item{g.SL.stratifyCV}{optional logical, if \code{TRUE}, then for \code{SuperLearner} estimation of initial \code{g1W}, a stratified cross-validation scheme will attempt to maintain the same prevalence of \code{A} in each training and validation sample. Ignored when \code{id} is specified and contains fewer unique values than the length of \code{Y}.}
 \item{g.Delta.SL.library}{optional vector of prediction algorithms to use for \code{SuperLearner} estimation of \code{pDelta1} }
-  \item{g.Delta.SL.stratifyCV}{optional logical, if \code{TRUE}, then for \code{SuperLearner} estimation of initial \code{pDelta1}, a stratified cross-validation scheme will attempt to maintain the same prevalence of \code{Delta} in each training and validation sample}
+  \item{g.Delta.SL.stratifyCV}{optional logical, if \code{TRUE}, then for \code{SuperLearner} estimation of initial \code{pDelta1}, a stratified cross-validation scheme will attempt to maintain the same prevalence of \code{Delta} in each training and validation sample. Ignored when \code{id} is specified and contains fewer unique values than the length of \code{Y}.}
   \item{family}{family specification for working regression models, generally \sQuote{gaussian} for continuous outcomes (default), \sQuote{binomial} for binary outcomes}
   \item{fluctuation}{\sQuote{logistic} (default), or \sQuote{linear}}
   \item{alpha}{used to keep predicted initial values bounded away from (0,1) for logistic fluctuation}
